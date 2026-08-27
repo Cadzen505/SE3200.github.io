@@ -3,11 +3,14 @@ body{
     text-align: center;
     background-color:rgb(202, 201, 201);
 
-    p{
+    .para{
         text-align: left;
     }
     .list{
      text-align: left;   
+    }
+    .btn{
+        background-color: chartreuse;
     }
 }
 
