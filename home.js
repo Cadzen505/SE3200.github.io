@@ -19,7 +19,6 @@ btn.addEventListener('click', function() {
     halo_img.src = halo_imgs[random_halo_img];
 });
 
-// --- Video Game & Halo Trivia Quiz ---
 const triviaContainer = document.querySelector('#title');
 
 fetch('https://opentdb.com/api.php?amount=50&category=15&type=multiple')
