@@ -1,7 +1,7 @@
 body{
     margin: 0;
     text-align: center;
-    background-color:rgb(202, 201, 201);
+    background-color:rgb(176, 174, 174);
 
     .para{
         text-align: left;
@@ -9,16 +9,25 @@ body{
     .list{
      text-align: left;   
     }
-    .btn{
-        background-color: rgb(0, 26, 83);
-        color: white;
+}
+button{
+    background-color: rgb(0, 26, 83);
+    color: white;
+}
+
+textarea{
+    background-color: rgb(50, 0, 83);
+    color: rgb(81, 179, 203);
+
+    ::placeholder{
+        color: rgb(81, 179, 203);
     }
 }
 
 header{
     margin: 0;
     text-align: center;
-    background-color:rgb(0, 0, 0);
+    background-color:black;
     
 
 

@@ -1,23 +1,62 @@
-const halo_img = document.querySelector('#halo_img');
-const btn = document.querySelector('#nxt_btn');
+const triviaContainer = document.querySelector('#trivia-container');
+const fetchBtn = document.querySelector('#fetch-btn');
 
-let halo_imgs = [
-    "https://raw.githubusercontent.com/Cadzen505/SE3200.github.io/main/halo1.webp",
-    "https://raw.githubusercontent.com/Cadzen505/SE3200.github.io/main/best_halo.jpeg",
-    "https://raw.githubusercontent.com/Cadzen505/SE3200.github.io/main/halo3_odst.webp",
-    "https://raw.githubusercontent.com/Cadzen505/SE3200.github.io/main/halo3.jpeg",
-    "https://raw.githubusercontent.com/Cadzen505/SE3200.github.io/main/halo_reach.jpeg"
-]
+function loadQuestions() {
+    triviaContainer.innerHTML = "<p>Loading questions from server...</p>";
+
+    fetch('http://localhost:8000/questions')
+        .then(response => response.json())
+        .then(data => {
+            triviaContainer.innerHTML = "";
+            
+            data.forEach((q, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.style.margin = "15px 0";
+                
+                questionDiv.innerHTML = `
+                    <p><strong>Q${index + 1}:</strong> ${q.question}</p>
+                    <p><em>Correct Answer:</em> ${q.correct_answer}</p>
+                    <p><em>Incorrect Answers:</em> ${q.incorrect_answers.join(", ")}</p>
+                `;
+                
+                triviaContainer.appendChild(questionDiv);
+            });
+        })
+        .catch(error => {
+            console.error("Error fetching questions:", error);
+            triviaContainer.textContent = "Failed to connect to the Python server.";
+        });
+}
+
+fetchBtn.addEventListener('click', loadQuestions);
 
 
-let img_index = 0;
+const form = document.querySelector('#question-form');
+const questionInput = document.querySelector('#new-question');
 
-btn.addEventListener('click', function() {
+form.addEventListener('submit', function(event) {
+    event.preventDefault();
 
-    const random_halo_img = Math.floor(Math.random() * halo_imgs.length);
+    const newQuestionText = questionInput.value;
 
-    halo_img.src = halo_imgs[random_halo_img];
+    fetch('http://localhost:8000/questions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'text/plain'
+        },
+        body: newQuestionText
+    })
+    .then(response => {
+        if (response.status === 201) {
+            console.log("Question successfully recorded!");
+            questionInput.value = "";
+            
+            loadQuestions();
+        } else {
+            console.error("Failed to save question.");
+        }
+    })
+    .catch(error => {
+        console.error("Error with POST request:", error);
+    });
 });
-
-const triviaContainer = document.querySelector('#title');
-

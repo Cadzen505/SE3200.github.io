@@ -10,12 +10,22 @@
  </head>
  <body>
     <header>
-        <img src="https://raw.githubusercontent.com/Cadzen505/SE3200.github.io/main/halo2_logo.png" class="halo" id="halo_img" width="215" height="275">
+        <img src="https://raw.githubusercontent.com/Cadzen505/SE3200.github.io/main/halo2_logo.png" class="halo" id="halo_img" width="350" height="225">
     </header>
 
-    <h3>Halo 2</h3>
+    <h3>Halo 2 questions API</h3>
 
-    <button class="btn" id="nxt_btn">Halo 2</button>
+    <button id="btn">Load Questions from Server</button>
+
+    <div id="trivia-container"></div>
+
+    <hr>
+
+    <form id="question-form">
+        <label for="new-question">Add a New Question:</label><br>
+        <textarea id="new-question" rows="3" placeholder="Type your question here..." required></textarea><br>
+        <button id="btn" type="submit">Submit Question</button>
+    </form>
 
 
     <script src="home.js"></script>

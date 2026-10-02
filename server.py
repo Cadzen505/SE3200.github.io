@@ -3,7 +3,7 @@ import json
 import os
 
 PORT = 8000
-FILENAME = "messages.txt"
+FILENAME = "questions.txt"
 
 class MessageHandler(http.server.BaseHTTPRequestHandler):
 
@@ -18,14 +18,27 @@ class MessageHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path == "/messages":
-            messages = []
-            if os.path.exists(FILENAME):
-                with open(FILENAME, "r") as f:
-                    messages = [line.strip() for line in f.readlines()]
+        if self.path == "/questions":
+            
+            halo2_questions = [
+                {
+                    "question": "What is the name of the Covenant Prophet who serves as a main antagonist in Halo 2?",
+                    "correct_answer": "Prophet of Truth",
+                    "incorrect_answers": ["Prophet of Regret", "Prophet of Mercy", "The Arbiter"]
+                },
+                {
+                    "question": "Which playable character besides Master Chief is introduced in Halo 2?",
+                    "correct_answer": "The Arbiter",
+                    "incorrect_answers": ["Noble Six", "Spartan Locke", "Sgt. Johnson"]
+                },
+                {
+                    "question": "What is the ship the Master Chief is on in the first Mission?",
+                    "correct_answer": "Cario Station",
+                    "incorrect_answers": ["Pillar of Autumn", "Absolute", "Aada"]
+                }
+            ]
 
-            response_data = json.dumps(messages).encode("utf-8")
-
+            response_data = json.dumps(halo2_questions).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_cors_headers()
@@ -39,7 +52,7 @@ class MessageHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b"404 Not Found: The requested endpoint does not exist.")
 
     def do_POST(self):
-        if self.path == "/messages":
+        if self.path == "/questions":
             content_length = int(self.headers.get('Content-Length', 0))
             
             post_data = self.rfile.read(content_length).decode('utf-8')
@@ -57,7 +70,6 @@ class MessageHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"404 Not Found: The requested endpoint does not exist.")
 
-# Start the server
 if __name__ == "__main__":
     server_address = ("", PORT)
     httpd = http.server.HTTPServer(server_address, MessageHandler)
