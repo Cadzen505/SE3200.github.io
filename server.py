@@ -21,16 +21,7 @@ class MessageHandler(http.server.BaseHTTPRequestHandler):
         if self.path == "/questions":
             
             halo2_questions = [
-                {
-                    "question": "What is the name of the Covenant Prophet who serves as a main antagonist in Halo 2?",
-                    "correct_answer": "Prophet of Truth",
-                    "incorrect_answers": ["Prophet of Regret", "Prophet of Mercy", "The Arbiter"]
-                },
-                {
-                    "question": "Which playable character besides Master Chief is introduced in Halo 2?",
-                    "correct_answer": "The Arbiter",
-                    "incorrect_answers": ["Noble Six", "Spartan Locke", "Sgt. Johnson"]
-                },
+        
                 {
                     "question": "What is the ship the Master Chief is on in the first Mission?",
                     "correct_answer": "Cario Station",
@@ -38,6 +29,11 @@ class MessageHandler(http.server.BaseHTTPRequestHandler):
                 }
             ]
 
+            if os.path.exists(FILENAME):
+                with open(FILENAME, "r") as f:
+                    user_questions = [line.strip() for line in f.readlines() if line.strip()]
+                    halo2_questions.extend(user_questions)
+                    
             response_data = json.dumps(halo2_questions).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

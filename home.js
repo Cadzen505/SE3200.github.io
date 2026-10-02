@@ -13,11 +13,15 @@ function loadQuestions() {
                 const questionDiv = document.createElement('div');
                 questionDiv.style.margin = "15px 0";
                 
-                questionDiv.innerHTML = `
-                    <p><strong>Q${index + 1}:</strong> ${q.question}</p>
-                    <p><em>Correct Answer:</em> ${q.correct_answer}</p>
-                    <p><em>Incorrect Answers:</em> ${q.incorrect_answers.join(", ")}</p>
-                `;
+                if (typeof q === 'object' && q !== null) {
+                    questionDiv.innerHTML = `
+                        <p><strong>Q${index + 1}:</strong> ${q.question}</p>
+                        <p><em>Correct Answer:</em> ${q.correct_answer || "N/A"}</p>
+                        <p><em>Incorrect Answers:</em> ${q.incorrect_answers ? q.incorrect_answers.join(", ") : "N/A"}</p>
+                    `;
+                } else {
+                    questionDiv.innerHTML = `<p><strong>Q${index + 1}:</strong> ${q}</p>`;
+                }
                 
                 triviaContainer.appendChild(questionDiv);
             });
@@ -28,7 +32,11 @@ function loadQuestions() {
         });
 }
 
-fetchBtn.addEventListener('click', loadQuestions);
+if (fetchBtn) {
+    fetchBtn.addEventListener('click', loadQuestions);
+} else {
+    console.error("Could not find element with ID #fetch-btn");
+}
 
 
 const form = document.querySelector('#question-form');
