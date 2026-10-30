@@ -13,11 +13,28 @@
         <img src="https://raw.githubusercontent.com/Cadzen505/SE3200.github.io/main/halo2_logo.png" class="halo" id="halo_img" width="350" height="225">
     </header>
 
-    <h3>Halo 2 questions (click to see what to type, also Q: is automatically added)</h3>
+    <h3>Halo 2 questions (click to see what to type, also Question ID: is automatically added)</h3>
 
     <button id="fetch-btn">Load Questions from Server</button>
 
+    <div id="error-banner"></div>
     <div id="trivia-container"></div>
+
+    <hr>
+
+    <form id="delete-form">
+        <label for="delete-question">Delete a Posted Question:</label><br>
+        <textarea id="delete-question" rows="3" placeholder="Type a question number here..." required></textarea><br>
+        <button type="submit">Delete Question</button>
+    </form>
+
+    <hr>
+
+    <form id="replace-form">
+        <label for="replace-question">Replace a Question:</label><br>
+        <textarea id="replace-question" rows="3" placeholder="Type question ID, then your question..." required></textarea><br>
+        <button type="submit">Update Question</button>
+    </form>
 
     <hr>
 
