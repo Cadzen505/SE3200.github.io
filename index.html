@@ -1,49 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
- <head>
- <meta charset="utf-8" />
- <meta
- name="viewport"
- content="width=device-width, initial-scale=1.0" />
- <link rel="stylesheet" href="./intro.css" />
- <title>Halo 2 Trivia</title>
- </head>
- <body>
-    <header>
-        <img src="https://raw.githubusercontent.com/Cadzen505/SE3200.github.io/main/halo2_logo.png" class="halo" id="halo_img" width="350" height="225">
-    </header>
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Halo 2 Trivia</title>
+     <link rel="stylesheet" href="login_register.css" />
+</head>
+<body>
+    <div id="error-banner" style="color: red; font-weight: bold; margin-bottom: 10px;"></div>
 
-    <h3>Halo 2 questions (click to see what to type, also Question ID: is automatically added)</h3>
-
-    <button id="fetch-btn">Load Questions from Server</button>
-
-    <div id="error-banner"></div>
-    <div id="trivia-container"></div>
-
-    <hr>
-
-    <form id="delete-form">
-        <label for="delete-question">Delete a Posted Question:</label><br>
-        <textarea id="delete-question" rows="3" placeholder="Type a question number here..." required></textarea><br>
-        <button type="submit">Delete Question</button>
+    <div class="login-container">
+    <h2>Log In to Halo 2 Trivia</h2>
+    <form id="login-form">
+        <label>Email: <input type="email" id="login-email" required></label><br><br>
+        <label>Password: <input type="password" id="login-password" required></label><br><br>
+        <button type="submit">Log In</button>
     </form>
+    
+    <p style="margin-top: 15px;">Don't have an account? <a href="register.html">Register here</a></p>
+    </div>
 
-    <hr>
-
-    <form id="replace-form">
-        <label for="replace-question">Replace a Question:</label><br>
-        <textarea id="replace-question" rows="3" placeholder="Type question ID, then your question..." required></textarea><br>
-        <button type="submit">Update Question</button>
-    </form>
-
-    <hr>
-
-    <form id="question-form">
-        <label for="new-question">Add a New Question:</label><br>
-        <textarea id="new-question" rows="3" placeholder="Type your question here..." required></textarea><br>
-        <button type="submit">Submit Question</button>
-    </form>
-
-    <script src="home.js"></script>
- </body>
+    <script src="login.js"></script>
+</body>
 </html>

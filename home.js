@@ -1,6 +1,39 @@
+fetch('/check-auth', {
+    method: 'GET',
+    credentials: 'include'
+})
+.then(res => {
+    if (!res.ok) throw new Error("Unauthorized");
+    return res.json();
+})
+.then(user => {
+    const welcomeEl = document.querySelector('#user-welcome');
+    if (welcomeEl) {
+        welcomeEl.textContent = `Welcome, ${user.first_name} ${user.last_name}!`;
+    }
+    loadQuestions();
+})
+.catch(() => {
+    window.location.href = 'index.html';
+})
+
+const logoutBtn = document.querySelector('#logout-btn');
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', function() {
+        fetch('/logout', {
+            method: 'POST',
+            credentials: 'include'
+        })
+        .then(() => {
+            window.location.href = 'index.html';
+        });
+    });
+}
+
 const triviaContainer = document.querySelector('#trivia-container');
 const fetchBtn = document.querySelector('#fetch-btn');
 const errorBanner = document.querySelector('#error-banner');
+const questionInput = document.querySelector('#new-question');
 
 function showError(message) {
     if (errorBanner) {
@@ -14,73 +47,160 @@ function clearError() {
     }
 }
 
+function resetFormTemplate() {
+    if (questionInput) {
+        questionInput.value = 
+`Question: 
+Correct Answer: 
+Incorrect Answers: `;
+    }
+}
+
+resetFormTemplate();
+
 function loadQuestions() {
     clearError();
-    triviaContainer.innerHTML = "<p>Loading questions from server...</p>";
+    if (triviaContainer) {
+        triviaContainer.innerHTML = "<p>Loading questions from server...</p>";
+    }
 
-    fetch('http://localhost:8000/questions')
-        .then(response => response.json())
-        .then(data => {
-            triviaContainer.innerHTML = "";
-            
-            data.forEach((q, index) => {
-                const questionDiv = document.createElement('div');
-                questionDiv.style.margin = "15px 0";
-                questionDiv.style.padding = "10px";
-                questionDiv.style.border = "1px solid #ddd";
-                questionDiv.style.borderRadius = "5px";
-                
-                const qId = q.id !== undefined ? q.id : (index + 1);
-const label = qId === 1 ? "Holder (ID 1)" : `Question ID ${qId}`;
-
-const incorrects = Array.isArray(q.incorrect_answers) 
-    ? q.incorrect_answers.join(", ") 
-    : (q.incorrect_answers || "N/A");
-
-const editButtonHtml = qId === 1 
-    ? ''
-    : `<button type="button" class="edit-btn" data-id="${qId}" data-question="${q.question}" data-correct="${q.correct_answer || 'None'}" data-incorrect="${incorrects}" style="margin-top: 5px; padding: 4px 8px; cursor: pointer;">Edit / Pre-fill</button>`;
-
-questionDiv.innerHTML = `
-    <p><strong>${label}:</strong> ${q.question}</p>
-    <p><em>Correct Answer:</em> ${q.correct_answer || "N/A"}</p>
-    <p><em>Incorrect Answers:</em> ${incorrects}</p>
-    ${editButtonHtml}
-`;
-
-const editBtn = questionDiv.querySelector('.edit-btn');
-if (editBtn) {
-    editBtn.addEventListener('click', function() {
-        const id = this.getAttribute('data-id');
-        const text = this.getAttribute('data-question');
-        const correct = this.getAttribute('data-correct');
-        const incorrect = this.getAttribute('data-incorrect');
-
-        const replaceInput = document.querySelector('#replace-question');
-        if (replaceInput) {
-            replaceInput.value = `${id} ${text} Correct Answer: ${correct} Incorrect Answers: ${incorrect}`;
-            window.scrollTo({ top: replaceInput.offsetTop - 50, behavior: 'smooth' });
+    fetch('/questions', {
+        method: 'GET',
+        credentials: 'include'
+    })
+    .then(response => {
+        if (response.status === 401) {
+            window.location.href = 'index.html';
+            return;
         }
+        return response.json();
+    })
+    .then(data => {
+        if (!triviaContainer) return;
+        triviaContainer.innerHTML = "";
+        
+        data.forEach((q, index) => {
+            const questionDiv = document.createElement('div');
+            questionDiv.className = 'trivia-item';
+            questionDiv.style.margin = "15px 0";
+            questionDiv.style.padding = "15px";
+            questionDiv.style.border = "1px solid #ddd";
+            questionDiv.style.borderRadius = "5px";
+            questionDiv.style.backgroundColor = "#2a2a2a";
+            questionDiv.style.color = "#fff";
+            questionDiv.style.textAlign = "center";
+            
+            const qId = q.id !== undefined ? q.id : (index + 1);
+            const label = qId === 1 ? "Holder (ID 1)" : `Question ID ${qId}`;
+
+            const incorrects = Array.isArray(q.incorrect_answers) 
+                ? q.incorrect_answers.join(", ") 
+                : (q.incorrect_answers || "N/A");
+
+            const isHolder = qId === 1;
+
+            questionDiv.innerHTML = `
+                <p><strong>${label}:</strong> <span class="question-text" data-id="${qId}">${q.question}</span></p>
+                <p><em>Correct Answer:</em> <span class="correct-text">${q.correct_answer || "N/A"}</span></p>
+                <p><em>Incorrect Answers:</em> <span class="incorrect-text">${incorrects}</span></p>
+                ${!isHolder ? `
+                    <div class="card-button-container">
+                        <button type="button" class="edit-btn" data-id="${qId}" data-question="${encodeURIComponent(q.question)}" data-correct="${encodeURIComponent(q.correct_answer || '')}" data-incorrect="${encodeURIComponent(incorrects)}" style="padding: 4px 10px; cursor: pointer;">Edit</button>
+                        <button type="button" class="delete-btn" data-id="${qId}" style="background-color: #8b0000; color: white; padding: 4px 10px; cursor: pointer;">Delete</button>
+                    </div>
+                ` : ''}
+            `;
+
+            triviaContainer.appendChild(questionDiv);
+        });
+    })
+    .catch(error => {
+        console.error("Error fetching questions:", error);
+        showError("Failed to connect to the Python server.");
     });
 }
-                
-                triviaContainer.appendChild(questionDiv);
+
+if (triviaContainer) {
+    triviaContainer.addEventListener('click', function(event) {
+        const button = event.target.closest('button');
+        if (!button) return;
+
+        const id = button.getAttribute('data-id');
+
+        if (button.classList.contains('edit-btn')) {
+            const questionDiv = button.closest('.trivia-item');
+            
+            const qText = decodeURIComponent(button.getAttribute('data-question'));
+            const cText = decodeURIComponent(button.getAttribute('data-correct'));
+            const iText = decodeURIComponent(button.getAttribute('data-incorrect'));
+
+            questionDiv.querySelector('p:nth-child(1)').innerHTML = `<strong>${questionDiv.querySelector('strong').textContent}</strong> <input type="text" class="edit-question-input" value="${qText}" style="width: 80%; padding: 4px; background: #1e1e1e; color: #fff; border: 1px solid #444;">`;
+            questionDiv.querySelector('p:nth-child(2)').innerHTML = `<em>Correct Answer:</em> <input type="text" class="edit-correct-input" value="${cText}" style="width: 80%; padding: 4px; background: #1e1e1e; color: #fff; border: 1px solid #444;">`;
+            questionDiv.querySelector('p:nth-child(3)').innerHTML = `<em>Incorrect Answers:</em> <input type="text" class="edit-incorrect-input" value="${iText}" style="width: 80%; padding: 4px; background: #1e1e1e; color: #fff; border: 1px solid #444;">`;
+
+            button.textContent = 'Save';
+            button.classList.remove('edit-btn');
+            button.classList.add('save-btn');
+        } 
+        else if (button.classList.contains('save-btn')) {
+            const questionDiv = button.closest('.trivia-item');
+            
+            const updatedQuestion = questionDiv.querySelector('.edit-question-input').value.trim();
+            const updatedCorrect = questionDiv.querySelector('.edit-correct-input').value.trim();
+            const updatedIncorrectStr = questionDiv.querySelector('.edit-incorrect-input').value.trim();
+
+            if (!updatedQuestion) {
+                alert("Question text cannot be empty!");
+                return;
+            }
+
+            const incorrectArray = updatedIncorrectStr.split(',').map(ans => ans.trim()).filter(Boolean);
+
+            fetch(`/questions/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    question: updatedQuestion,
+                    correct_answer: updatedCorrect,
+                    incorrect_answers: incorrectArray
+                })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error("Failed to update question.");
+                loadQuestions();
+            })
+            .catch(error => {
+                alert(error.message);
             });
-        })
-        .catch(error => {
-            console.error("Error fetching questions:", error);
-            showError("Failed to connect to the Python server.");
-        });
+        }
+
+        else if (button.classList.contains('delete-btn')) {
+            if (!confirm("Are you sure you want to delete this question?")) return;
+
+            fetch(`/questions/${id}`, {
+                method: 'DELETE',
+                credentials: 'include'
+            })
+            .then(async response => {
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.error || `Server responded with status ${response.status}`);
+                }
+                loadQuestions();
+            })
+            .catch(error => {
+                alert("Delete failed: " + error.message);
+            });
+        }
+    });
 }
 
 if (fetchBtn) {
     fetchBtn.addEventListener('click', loadQuestions);
-} else {
-    console.error("Could not find element with ID #fetch-btn");
 }
 
 const form = document.querySelector('#question-form');
-const questionInput = document.querySelector('#new-question');
 
 if (form) {
     form.addEventListener('submit', function(event) {
@@ -96,22 +216,23 @@ if (form) {
 
         if (rawText.includes("Correct Answer:")) {
             const parts = rawText.split("Correct Answer:");
-            questionText = parts[0].replace(/^question/i, "").trim();
+            questionText = parts[0].replace(/^question\s*:/i, "").replace(/^question/i, "").trim();
             if (!questionText) questionText = "Custom Question";
             
             const remainder = parts[1];
             if (remainder.includes("Incorrect Answers:")) {
                 const subParts = remainder.split("Incorrect Answers:");
-                correctAnswer = subParts[0].trim();
-                incorrectAnswers = subParts[1].split(",").map(ans => ans.trim()).filter(Boolean);
+                correctAnswer = subParts[0].replace(":", "").trim();
+                incorrectAnswers = subParts[1].replace(":", "").split(",").map(ans => ans.trim()).filter(Boolean);
             } else {
-                correctAnswer = remainder.trim();
+                correctAnswer = remainder.replace(":", "").trim();
             }
         }
 
-        fetch('http://localhost:8000/questions', {
+        fetch('/questions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({
                 question: questionText,
                 correct_answer: correctAnswer,
@@ -121,8 +242,10 @@ if (form) {
         .then(response => {
             if (response.status === 201) {
                 console.log("Question successfully recorded in SQLite database!");
-                questionInput.value = "";
+                resetFormTemplate();
                 loadQuestions();
+            } else if (response.status === 401) {
+                window.location.href = 'index.html';
             } else {
                 showError("Failed to save question to server.");
             }
@@ -130,125 +253,6 @@ if (form) {
         .catch(error => {
             console.error("Error with POST request:", error);
             showError("Network error while submitting question.");
-        });
-    });
-}
-
-const replaceForm = document.querySelector('#replace-form');
-const replaceQuestionInput = document.querySelector('#replace-question');
-
-if (replaceForm) {
-    replaceForm.addEventListener('submit', function(event) {
-        event.preventDefault();
-        clearError();
-
-        const rawText = replaceQuestionInput.value.trim();
-        if (!rawText) {
-            showError("Please enter a Question ID followed by the question text.");
-            return;
-        }
-
-        const parts = rawText.split(/\s+/);
-        const questionIdStr = parts[0];
-        const questionId = parseInt(questionIdStr, 10);
-
-        if (isNaN(questionId)) {
-            showError("The very first word must be a valid Question ID number (e.g., '2 What is...').");
-            return;
-        }
-
-        const textWithoutId = rawText.slice(questionIdStr.length).trim();
-        if (!textWithoutId) {
-            showError("Please include the question text after the ID.");
-            return;
-        }
-
-        let questionText = textWithoutId;
-        let correctAnswer = "None";
-        let incorrectAnswers = ["None"];
-
-        if (textWithoutId.includes("Correct Answer:")) {
-            const qParts = textWithoutId.split("Correct Answer:");
-            questionText = qParts[0].replace(/^question/i, "").trim();
-            if (!questionText) questionText = "Updated Question";
-            
-            const remainder = qParts[1];
-            if (remainder.includes("Incorrect Answers:")) {
-                const subParts = remainder.split("Incorrect Answers:");
-                correctAnswer = subParts[0].trim();
-                incorrectAnswers = subParts[1].split(",").map(ans => ans.trim()).filter(Boolean);
-            } else {
-                correctAnswer = remainder.trim();
-            }
-        }
-
-        fetch(`http://localhost:8000/questions/${questionId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                question: questionText,
-                correct_answer: correctAnswer,
-                incorrect_answers: incorrectAnswers
-            })
-        })
-        .then(response => {
-            if (response.status === 200) {
-                console.log(`Question ID ${questionId} successfully replaced in SQLite!`);
-                replaceQuestionInput.value = "";
-                loadQuestions();
-            } else if (response.status === 400) {
-                showError("You cannot replace the holder (ID 1).");
-            } else if (response.status === 404) {
-                showError(`Cannot update: Question ID ${questionId} was not found.`);
-            } else {
-                showError("Failed to update question on server.");
-            }
-        })
-        .catch(error => {
-            console.error("Error with PUT request:", error);
-            showError("Network error while updating question.");
-        });
-    });
-}
-
-const deleteForm = document.querySelector('#delete-form');
-const questionDeleteInput = document.querySelector('#delete-question');
-
-if (deleteForm) {
-    deleteForm.addEventListener('submit', function(event) {
-        event.preventDefault();
-        clearError();
-
-        const questionId = questionDeleteInput.value.trim();
-        if (!questionId) {
-            showError("Please enter a valid question ID to delete.");
-            return;
-        }
-
-        const confirmed = confirm(`Are you sure you want to delete Question ID ${questionId}?`);
-        if (!confirmed) {
-            return;
-        }
-
-        fetch(`http://localhost:8000/questions/${questionId}`, {
-            method: 'DELETE'
-        })
-        .then(response => {
-            if (response.status === 204) {
-                console.log(`Question ID ${questionId} successfully deleted from SQLite!`);
-                questionDeleteInput.value = "";
-                loadQuestions();
-            } else if (response.status === 404) {
-                showError(`Question ID ${questionId} was not found.`);
-            } else if (response.status === 400) {
-                showError(`You cannot replace the holder (ID 1).`);
-            } else {
-                showError("Failed to delete question.");
-            }
-        })
-        .catch(error => {
-            console.error("Error with DELETE request:", error);
-            showError("Network error while attempting to delete.");
         });
     });
 }

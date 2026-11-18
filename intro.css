@@ -1,41 +1,73 @@
-body{
-    margin: 0;
+body {
     text-align: center;
-    background-color:rgb(176, 174, 174);
-
-    .para{
-        text-align: left;
-    }
-    .list{
-     text-align: left;   
-    }
+    margin: 0;
+    background-color: rgb(176, 174, 174);
 }
-button{
+
+.para {
+    text-align: left;
+}
+
+.list {
+    text-align: left;   
+}
+
+#question-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.card-button-container {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+#trivia-container {
+    max-width: 600px;
+    margin: 20px auto;
+    text-align: center;
+}
+
+button {
+    text-align: center;
     background-color: rgb(0, 39, 122);
     color: white;
+    cursor: pointer;
 }
 
-textarea{
+textarea {
+    
     background-color: rgb(50, 0, 83);
     color: rgb(81, 179, 203);
-
-    ::placeholder{
-        color: rgb(81, 179, 203);
-    }
+    cursor: pointer;
 }
 
-#error-banner{
+textarea::placeholder {
+    color: rgb(81, 179, 203);
+}
+
+#error-banner {
     color: red;
     font-weight: bold;
     margin: 10px 0;
 }
 
-header{
+header {
     margin: 0;
     text-align: center;
-    background-color:black;
-    
+    background-color: black;
+}
 
-
-    
+#logout-btn {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background-color: rgb(0, 39, 122);
+    color: white;
+    padding: 10px 20px;
+    z-index: 9999;
+    cursor: pointer;
 }

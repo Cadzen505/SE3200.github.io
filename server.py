@@ -3,9 +3,35 @@ import json
 import os
 import re
 import sqlite3
+import hashlib
+import uuid
+import webbrowser
+import threading
+from urllib.parse import urlparse
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 
 PORT = 8000
 DB_FILENAME = "questions.db"
+conn = sqlite3.connect(DB_FILENAME, check_same_thread=False)
+cursor = conn.cursor()
+
+active_sessions = {}
+
+def hash_password(password):
+    salt = os.urandom(16)
+    pwd_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+    return salt.hex() + ':' + pwd_hash.hex()
+
+def verify_password(stored_password, provided_password):
+    try:
+        salt_hex, hash_hex = stored_password.split(':')
+        salt = bytes.fromhex(salt_hex)
+        stored_hash = bytes.fromhex(hash_hex)
+        provided_hash = hashlib.pbkdf2_hmac('sha256', provided_password.encode('utf-8'), salt, 100000)
+        return provided_hash == stored_hash
+    except Exception:
+        return False
 
 class DatabaseManager:
     def __init__(self, db_name=DB_FILENAME):
@@ -27,6 +53,15 @@ class DatabaseManager:
                     incorrect_answers TEXT
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    first_name TEXT NOT NULL,
+                    last_name TEXT NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL
+                )
+            """)
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM questions")
             if cursor.fetchone()[0] == 0:
@@ -36,6 +71,32 @@ class DatabaseManager:
                     ("What is the ship the Master Chief is on in the first Mission?", "Cario Station", json.dumps(["Pillar of Autumn", "Absolute", "Aada"]))
                 )
             conn.commit()
+
+    def add_user(self, first_name, last_name, email, password):
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                pwd_hash = hash_password(password)
+                cursor.execute(
+                    "INSERT INTO users (first_name, last_name, email, password_hash) VALUES (?, ?, ?, ?)",
+                    (first_name, last_name, email, pwd_hash)
+                )
+                conn.commit()
+                return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            return None
+
+    def get_user_by_email(self, email):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
+            return cursor.fetchone()
+
+    def get_user_by_id(self, user_id):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, first_name, last_name, email FROM users WHERE id = ?", (user_id,))
+            return cursor.fetchone()
 
     def get_all_questions(self):
         with self.get_connection() as conn:
@@ -108,10 +169,12 @@ class DatabaseManager:
 
 db = DatabaseManager()
 
-class CRUDRequestHandler(http.server.BaseHTTPRequestHandler):
+class CRUDRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def send_cors_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self.headers.get("Origin", "http://localhost:8000")
+        self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Access-Control-Allow-Credentials", "true")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
@@ -120,11 +183,14 @@ class CRUDRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_cors_headers()
         self.end_headers()
 
-    def send_json_response(self, status_code, data): 
+    def send_json_response(self, status_code, data, extra_headers=None): 
         response_bytes = json.dumps(data).encode("utf-8")
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
         self.send_cors_headers()
+        if extra_headers:
+            for key, val in extra_headers.items():
+                self.send_header(key, val)
         self.end_headers()
         self.wfile.write(response_bytes)
 
@@ -136,9 +202,13 @@ class CRUDRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_json_response(status_code, error_payload)
 
     def parse_item_id(self, path):
-        match = re.match(r"^/questions/(\d+)$", path)
-        if match:
-            return int(match.group(1))
+        parsed_url = urlparse(path)
+        path_parts = parsed_url.path.strip('/').split('/')
+        if len(path_parts) == 2 and path_parts[0] == 'questions':
+            try:
+                return int(path_parts[1])
+            except ValueError:
+                return None
         return None
 
     def read_json_body(self):
@@ -151,35 +221,121 @@ class CRUDRequestHandler(http.server.BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return None
 
+    def get_authenticated_user(self):
+        cookie_header = self.headers.get("Cookie")
+        if not cookie_header:
+            return None
+        
+        cookies = {}
+        for cookie in cookie_header.split(";"):
+            if "=" in cookie:
+                key, val = cookie.strip().split("=", 1)
+                cookies[key] = val
+        
+        session_id = cookies.get("session_id")
+        if not session_id or session_id not in active_sessions:
+            return None
+            
+        user_id = active_sessions[session_id]
+        return db.get_user_by_id(user_id)
+
     def do_GET(self):
-        if self.path == "/questions" or self.path == "/questions/":
-            questions = db.get_all_questions()
-            self.send_json_response(200, questions)
-            return
-
-        item_id = self.parse_item_id(self.path)
-        if item_id is not None:
-            item = db.get_question_by_id(item_id)
-            if item:
-                self.send_json_response(200, item)
+        if self.path == "/check-auth":
+            user = self.get_authenticated_user()
+            if user:
+                self.send_json_response(200, {
+                    "id": user["id"],
+                    "first_name": user["first_name"],
+                    "last_name": user["last_name"],
+                    "email": user["email"]
+                })
             else:
-                self.send_error_response(404, f"Question with ID {item_id} was not found.")
+                self.send_error_response(401, "Not authenticated")
             return
 
-        self.send_error_response(404, "Invalid endpoint route.")
+        if self.path.startswith("/questions"):
+            if not self.get_authenticated_user():
+                self.send_error_response(401, "Unauthorized")
+                return
+
+            if self.path == "/questions" or self.path == "/questions/":
+                questions = db.get_all_questions()
+                self.send_json_response(200, questions)
+                return
+
+            item_id = self.parse_item_id(self.path)
+            if item_id is not None:
+                item = db.get_question_by_id(item_id)
+                if item:
+                    self.send_json_response(200, item)
+                else:
+                    self.send_error_response(404, f"Question not found.")
+                return
+
+        return super().do_GET()
 
     def do_POST(self):
+        if self.path == "/register" or self.path == "/register/":
+            data = self.read_json_body()
+            if not data or not all(k in data for k in ("first_name", "last_name", "email", "password")):
+                self.send_error_response(400, "Missing required registration fields.")
+                return
+
+            user_id = db.add_user(data["first_name"], data["last_name"], data["email"], data["password"])
+            if user_id is None:
+                self.send_error_response(400, "Email address is already registered.")
+                return
+
+            self.send_json_response(201, {"message": "User registered successfully", "id": user_id})
+            return
+
+        if self.path == "/login" or self.path == "/login/":
+            data = self.read_json_body()
+            if not data or not all(k in data for k in ("email", "password")):
+                self.send_error_response(400, "Email and password are required.")
+                return
+
+            user = db.get_user_by_email(data["email"])
+            if not user or not verify_password(user["password_hash"], data["password"]):
+                self.send_error_response(401, "Invalid email or password.")
+                return
+
+            session_id = str(uuid.uuid4())
+            active_sessions[session_id] = user["id"]
+
+            cookie_val = f"session_id={session_id}; Path=/; HttpOnly"
+            self.send_json_response(200, {
+                "id": user["id"],
+                "first_name": user["first_name"],
+                "last_name": user["last_name"],
+                "email": user["email"]
+            }, extra_headers={"Set-Cookie": cookie_val})
+            return
+
+        if self.path == "/logout" or self.path == "/logout/":
+            cookie_header = self.headers.get("Cookie")
+            if cookie_header:
+                for cookie in cookie_header.split(";"):
+                    if "session_id=" in cookie:
+                        sid = cookie.strip().split("=")[1]
+                        if sid in active_sessions:
+                            del active_sessions[sid]
+
+            clear_cookie = "session_id=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly"
+            self.send_json_response(200, {"message": "Logged out successfully"}, extra_headers={"Set-Cookie": clear_cookie})
+            return
+
         if self.path == "/questions" or self.path == "/questions/":
+            if not self.get_authenticated_user():
+                self.send_error_response(401, "Unauthorized")
+                return
+
             data = self.read_json_body()
             if data is None:
                 self.send_error_response(400, "Request body cannot be empty.")
                 return
 
-            if isinstance(data, dict):
-                new_question = db.add_question(data)
-            else:
-                new_question = db.add_question({"question": str(data)})
-
+            new_question = db.add_question(data if isinstance(data, dict) else {"question": str(data)})
             self.send_json_response(201, new_question)
             return
 
@@ -188,20 +344,20 @@ class CRUDRequestHandler(http.server.BaseHTTPRequestHandler):
     def do_PUT(self):
         item_id = self.parse_item_id(self.path)
         if item_id is not None:
+            if not self.get_authenticated_user():
+                self.send_error_response(401, "Unauthorized")
+                return
+
             if item_id == 1:
-                self.send_error_response(400, "You cannot replace the holder (ID 1).")
+                self.send_error_response(400, "Cannot replace holder (ID 1).")
                 return
 
             data = self.read_json_body()
-            if not isinstance(data, dict):
-                self.send_error_response(400, "PUT request requires a valid JSON object body.")
-                return
-
             updated_item = db.update_question(item_id, data)
             if updated_item:
                 self.send_json_response(200, updated_item)
             else:
-                self.send_error_response(404, f"Cannot replace: Question with ID {item_id} was not found.")
+                self.send_error_response(404, "Question not found.")
             return
 
         self.send_error_response(404, "Invalid endpoint route.")
@@ -209,6 +365,10 @@ class CRUDRequestHandler(http.server.BaseHTTPRequestHandler):
     def do_DELETE(self):
         item_id = self.parse_item_id(self.path)
         if item_id is not None:
+            if not self.get_authenticated_user():
+                self.send_error_response(401, "Unauthorized")
+                return
+
             if item_id == 1:
                 self.send_error_response(400, "You cannot delete the holder (ID 1).")
                 return
@@ -216,17 +376,20 @@ class CRUDRequestHandler(http.server.BaseHTTPRequestHandler):
             success = db.delete_question(item_id)
             if success:
                 self.send_response(204)
-                self.send_cors_headers()
                 self.end_headers()
             else:
-                self.send_error_response(404, f"Cannot delete: Question with ID {item_id} was not found.")
+                self.send_error_response(404, "Question ID not found.")
             return
 
         self.send_error_response(404, "Invalid endpoint route.")
 
 
 if __name__ == "__main__":
-    server_address = ("", PORT)
+    server_address = ("127.0.0.1", PORT)
     httpd = http.server.HTTPServer(server_address, CRUDRequestHandler)
-    print(f"SQLite-backed CRUD REST API server running on port {PORT}...")
+    print(f"Server running at http://127.0.0.1:{PORT} ...")
+    
+    threading.Timer(0.5, lambda: webbrowser.open(f"http://127.0.0.1:{PORT}/index.html")).start()
+    
     httpd.serve_forever()
+
